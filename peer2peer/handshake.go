@@ -1,5 +1,7 @@
 package peer2peer
 
-type HandshakeFunc func(any) error
+// var ErrinvalidHandshake = errors.New("invalid handshake")
 
-func NOPHandshakeFunc(any) error { return nil }
+type HandshakeFunc func(Peer) error
+
+func NOPHandshakeFunc(Peer) error { return nil }
