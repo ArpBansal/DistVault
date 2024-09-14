@@ -82,10 +82,7 @@ func NewStore(opts StoreOpts) *Store {
 func (s *Store) Has(key string) bool {
 	pathkey := s.PathTransformFunc(key)
 	_, err := os.Stat(s.Root + "/" + pathkey.FullPath())
-	if errors.Is(err, os.ErrNotExist) {
-		return false
-	}
-	return true
+	return !errors.Is(err, os.ErrNotExist)
 }
 
 func (s *Store) Delete(key string) error {
