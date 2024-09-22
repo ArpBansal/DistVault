@@ -82,7 +82,11 @@ func NewStore(opts StoreOpts) *Store {
 func (s *Store) Has(key string) bool {
 	pathkey := s.PathTransformFunc(key)
 	_, err := os.Stat(s.Root + "/" + pathkey.FullPath())
-	return !errors.Is(err, os.ErrNotExist)
+	return !errors.Is(err, os.ErrNotExist) // self-changes
+}
+
+func (s *Store) Clear() error {
+	return os.RemoveAll(s.Root)
 }
 
 func (s *Store) Delete(key string) error {
@@ -92,6 +96,10 @@ func (s *Store) Delete(key string) error {
 	}()
 	return os.RemoveAll(s.Root + "/" + pathkey.FirstPathName())
 
+}
+
+func (s *Store) Write(key string, r io.Reader) (int64, error) {
+	return s.writeStream(key, r)
 }
 
 // why used two funcs Read() and readStream ??
@@ -112,24 +120,24 @@ func (s *Store) readStream(key string) (io.ReadCloser, error) {
 
 }
 
-func (s *Store) writeStream(key string, r io.Reader) error {
+func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
 	PathKey := s.PathTransformFunc(key)
 	if err := os.MkdirAll(s.Root+"/"+PathKey.PathName, os.ModePerm); err != nil {
-		return err
+		return 0, err
 	}
 
 	filePath := PathKey.FullPath()
 	filePathWithRoot := s.Root + "/" + filePath
 	f, err := os.Create(filePathWithRoot)
 	if err != nil {
-		return err
+		return 0, err
 	}
+	// defer f.Close()
 
 	n, err := io.Copy(f, r)
 	if err != nil {
-		return err
+		return 0, err
 	}
-
 	log.Printf("written (%d) bytes to disk: %s", n, filePathWithRoot)
-	return nil
+	return n, nil
 }
