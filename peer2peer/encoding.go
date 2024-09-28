@@ -23,7 +23,6 @@ func (dec DefaultDecoder) Decode(r io.Reader, msg *RPC) error {
 	if _, err := r.Read(peekBuf); err != nil {
 		return err
 	}
-
 	// in case of stream, we are not decoding
 	// handle stream separately
 	stream := peekBuf[0] == IncomingStream

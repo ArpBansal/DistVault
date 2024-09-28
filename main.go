@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -20,6 +22,7 @@ func makeServer(listenAddr string, nodes ...string) *Server {
 		PathTransformFunc: CASPathTransformFunc,
 		Transport:         tcpTransport,
 		BootstrapNodes:    nodes,
+		Enckey:            newEncryptionkey(),
 	}
 	s := NewServer(fileserveropts)
 
@@ -32,25 +35,34 @@ func main() {
 
 	s1 := makeServer(":3000", "")
 	s2 := makeServer(":4000", ":3000")
-	go func() {
-		log.Fatal(s1.Start())
-	}()
-	time.Sleep(time.Second * 3)
+	// TODO connecting to all peers automated not hardcoded like this
+	s3 := makeServer(":5000", ":3000", ":4000")
+	go func() { log.Fatal(s1.Start()) }()
+	time.Sleep(time.Second * 2)
+	go func() { log.Fatal(s2.Start()) }()
+	time.Sleep(time.Second * 2)
 
-	go s2.Start()
-	time.Sleep(time.Second * 3)
+	go s3.Start()
+	time.Sleep(time.Second * 2)
+	for i := 0; i < 20; i++ {
+		key := fmt.Sprintf("coolPicture_%d.jpg", i)
+		data := bytes.NewReader([]byte("my big data file here!!"))
+		err := s3.StoreData(key, data)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := s3.store.Delete(key); err != nil {
+			log.Fatal(err)
+		}
 
-	data := bytes.NewReader([]byte("my big data file here!!"))
-	err := s2.StoreData("myprivateData", data)
-	// r, err := s2.Get("myprivateDat")
-	if err != nil {
-		log.Fatal(err)
+		r, err := s3.Get(key)
+		if err != nil {
+			log.Fatal(err)
+		}
+		b, err := io.ReadAll(r)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(string(b))
 	}
-	// b, err := io.ReadAll(r)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Println(string(b))
-
-	select {}
 }

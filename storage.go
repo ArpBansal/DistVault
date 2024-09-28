@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -103,41 +102,65 @@ func (s *Store) Write(key string, r io.Reader) (int64, error) {
 }
 
 // why used two funcs Read() and readStream ??
-func (s *Store) Read(key string) (io.Reader, error) {
-	f, err := s.readStream(key)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, f)
-	return buf, err
+// FixMe: should I rather than copy directly to reader, first copy into a buffer-
+// -Maybe just return file from readstream
+
+func (s *Store) Read(key string) (int64, io.Reader, error) {
+	return s.readStream(key)
+
+	// TODO: maybe implement cache
+
+	// fsize, f, err := s.readStream(key)
+	// if err != nil {
+	// 	return fsize, nil, err
+	// }
+	// defer f.Close()
+	// buf := new(bytes.Buffer)
+	// _, err = io.Copy(buf, f)
+	// return fsize, buf, err
 }
 
-func (s *Store) readStream(key string) (io.ReadCloser, error) {
+func (s *Store) readStream(key string) (int64, io.ReadCloser, error) {
 	pathKey := s.PathTransformFunc(key)
-	return os.Open(s.Root + "/" + pathKey.FullPath()) // self-changes
+	fullPathwithroot := s.Root + "/" + pathKey.FullPath()
+	file, err := os.Open(fullPathwithroot)
+	if err != nil {
+		return 0, nil, err
+	}
+	fi, err := file.Stat()
+	if err != nil {
+		return 0, nil, err
+	}
+	return fi.Size(), file, nil
 
 }
 
-func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
+func (s *Store) WriteDecrypt(encKey []byte, key string, r io.Reader) (int64, error) {
+	f, err := s.openfileforwriting(key)
+	if err != nil {
+		return 0, err
+	}
+
+	n, err := decryptCopy(encKey, r, f)
+
+	return int64(n), err
+}
+
+func (s *Store) openfileforwriting(key string) (*os.File, error) {
 	PathKey := s.PathTransformFunc(key)
 	if err := os.MkdirAll(s.Root+"/"+PathKey.PathName, os.ModePerm); err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	filePath := PathKey.FullPath()
 	filePathWithRoot := s.Root + "/" + filePath
-	f, err := os.Create(filePathWithRoot)
-	if err != nil {
-		return 0, err
-	}
-	// defer f.Close()
+	return os.Create(filePathWithRoot)
 
-	n, err := io.Copy(f, r)
+}
+func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
+	f, err := s.openfileforwriting(key)
 	if err != nil {
 		return 0, err
 	}
-	log.Printf("written (%d) bytes to disk: %s", n, filePathWithRoot)
-	return n, nil
+	return io.Copy(f, r)
 }

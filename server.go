@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/gob"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ type ServerOpts struct {
 	Transport         peer2peer.Transport
 	// TCPtransportopts  peer2peer.TCPtransportOps // check for removal
 	BootstrapNodes []string
+	Enckey         []byte
 }
 
 type Server struct {
@@ -63,10 +65,13 @@ func init() {
 
 func (s *Server) Get(key string) (io.Reader, error) {
 	if s.store.Has(key) {
-		return s.store.Read(key)
+		log.Printf("[%s] serving file (%s) from local disk\n", s.Transport.Addr(), key)
+		_, r, err := s.store.Read(key)
+
+		return r, err
 	}
 
-	fmt.Printf("don't have file (%s) locally\n", key)
+	fmt.Printf("[%s]don't have file (%s) locally, fetching from network\n", s.Transport.Addr(), key)
 	msg := Message{
 		Payload: MessageGetFile{
 			Key: key,
@@ -75,17 +80,23 @@ func (s *Server) Get(key string) (io.Reader, error) {
 	if err := s.broadcast(&msg); err != nil {
 		return nil, err
 	}
+	time.Sleep(500 * time.Millisecond)
 	for _, peer := range s.peers {
-		fileBuffer := new(bytes.Buffer)
-		n, err := io.Copy(fileBuffer, peer)
+		var filesize int64
+		binary.Read(peer, binary.LittleEndian, &filesize)
+		// n, err := s.store.Write(key, io.LimitReader(peer, filesize)) # ToBe removed
+		n, err := s.store.WriteDecrypt(s.Enckey, key, io.LimitReader(peer, filesize))
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println("recieved and written bytes to disk: ", n)
-		fmt.Println(fileBuffer.String())
+
+		fmt.Printf("[%s] recieved (%d) bytes over the network from (%s)\n", s.Transport.Addr(), n, peer.RemoteAddr())
+
+		peer.CloseStream()
 	}
-	select {}
-	return nil, nil // fmt.Errorf("key not found")
+
+	_, r, err := s.store.Read(key)
+	return r, err
 }
 
 // store this file to disk and broadcast to all known peers
@@ -101,47 +112,33 @@ func (s *Server) StoreData(key string, r io.Reader) error {
 	msg := Message{
 		Payload: MessageStoreFile{
 			Key:  key,
-			Size: size,
+			Size: size + 16, // 16 bytes due to encryption
 		},
-	}
-	msgbuf := new(bytes.Buffer)
-	if err := gob.NewEncoder(msgbuf).Encode(msg); err != nil {
-		return err
-	}
-	for _, peer := range s.peers {
-		if err := peer.Send(msgbuf.Bytes()); err != nil {
-			return err
-		}
 	}
 
 	if err := s.broadcast(&msg); err != nil {
 		return err
 	}
 
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Millisecond * 5)
 
-	// TODO use a multiwriter here
+	// using a multiwriter here
+	var writers []io.Writer
 	for _, peer := range s.peers {
-		n, err := io.Copy(peer, fileBuffer)
-		if err != nil {
-			return err
-		}
-		fmt.Println("recieved and written bytes to disk: ", n)
+		writers = append(writers, peer)
+	}
+	mw := io.MultiWriter(writers...)
+	mw.Write([]byte{peer2peer.IncomingStream})
+	n, err := EncryptCopy(s.Enckey, fileBuffer, mw)
+	if err != nil {
+		return err
 	}
 
+	fmt.Printf("[%s] recieved and written bytes to disk: %d", s.Transport.Addr(), n)
+
 	return nil
-
-	// p := &DataMessage{
-	// 	Key:  key,
-	// 	Data: buf.Bytes(),
-	// }
-
-	// return s.broadcast(&Message{
-	// 	From:    "todo",
-	// 	Payload: p,
-	// })
-
 }
+
 func (s *Server) stream(msg *Message) error {
 	// M1
 	// buf := new(bytes.Buffer)
@@ -227,6 +224,7 @@ func (s *Server) bootstrapNewtowrk() error {
 			continue
 		}
 		go func(addr string) {
+			fmt.Printf("[%s] trying to connect with (%s)\n", s.Transport.Addr(), addr)
 			if err := s.Transport.Dial(addr); err != nil {
 				log.Println("dial error: ", err)
 			}
@@ -250,23 +248,33 @@ func (s *Server) handleMessage(from string, msg *Message) error {
 
 func (s *Server) handleMessageGetfile(from string, msg *MessageGetFile) error {
 	if !s.store.Has(msg.Key) {
-		return fmt.Errorf("don't have file (%s) on disk", msg.Key)
+		return fmt.Errorf("[%s]don't have file (%s) on disk", s.Transport.Addr(), msg.Key)
 	}
-	fmt.Printf("sending file (%s) over the network\n", msg.Key)
-	r, err := s.store.Read(msg.Key)
+	fmt.Printf("[%s] sending file (%s) over the network\n", s.Transport.Addr(), msg.Key)
+	filesize, r, err := s.store.Read(msg.Key)
 	if err != nil {
-		// panic("dhksdk")
 		return err
 	}
+
+	if rc, ok := r.(io.ReadCloser); ok {
+		fmt.Println("closing readCloser")
+		defer rc.Close()
+	}
+
 	peer, ok := s.peers[from]
 	if !ok {
 		return fmt.Errorf("peer (%s) not found in peer map", from)
 	}
+
+	// First send the "incomingstream" byte to the peer and then we can send
+	// file size as an int64
+	peer.Send([]byte{peer2peer.IncomingStream}) // TODO: why you couldn't figure out this
+	binary.Write(peer, binary.LittleEndian, filesize)
 	n, err := io.Copy(peer, r)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("written %d bytes to peer %s\n", n, from)
+	fmt.Printf("[%s] written %d bytes to peer %s\n", s.Transport.Addr(), n, from)
 	return nil
 }
 
@@ -279,9 +287,10 @@ func (s *Server) handleStoreFile(from string, msg *MessageStoreFile) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("written %d bytes to disk\n", n)
+	fmt.Printf("[%s] written %d bytes to disk\n", s.Transport.Addr(), n)
 
-	peer.(*peer2peer.TCPpeer).Wg.Done()
+	// peer.(*peer2peer.TCPpeer).Wg.Done() deprecated Wg made private
+	peer.CloseStream()
 
 	return nil
 
