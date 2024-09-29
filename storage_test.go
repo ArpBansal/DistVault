@@ -56,12 +56,12 @@ func TestStore(t *testing.T) {
 		if string(b) != string(data) {
 			t.Errorf("want %s have %s", data, b)
 		}
+		if ok := s.Has(key); !ok {
+			t.Errorf("expected to Not have key: %s", key)
+		}
 
 		if err := s.Delete(key); err != nil {
 			t.Error(err)
-		}
-		if ok := s.Has(key); ok {
-			t.Errorf("expected to Not have key: %s", key)
 		}
 	}
 }

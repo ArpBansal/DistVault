@@ -35,7 +35,7 @@ func main() {
 
 	s1 := makeServer(":3000", "")
 	s2 := makeServer(":4000", ":3000")
-	// TODO connecting to all peers automated not hardcoded like this
+	// TODO connecting to all peers automated not hardcoded like this -> automated peer discovery
 	s3 := makeServer(":5000", ":3000", ":4000")
 	go func() { log.Fatal(s1.Start()) }()
 	time.Sleep(time.Second * 2)

@@ -74,7 +74,7 @@ func (s *Server) Get(key string) (io.Reader, error) {
 	fmt.Printf("[%s]don't have file (%s) locally, fetching from network\n", s.Transport.Addr(), key)
 	msg := Message{
 		Payload: MessageGetFile{
-			Key: key,
+			Key: hashKeymd5(key),
 		},
 	}
 	if err := s.broadcast(&msg); err != nil {
@@ -111,7 +111,7 @@ func (s *Server) StoreData(key string, r io.Reader) error {
 
 	msg := Message{
 		Payload: MessageStoreFile{
-			Key:  key,
+			Key:  hashKeymd5(key),
 			Size: size + 16, // 16 bytes due to encryption
 		},
 	}
