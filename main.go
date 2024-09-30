@@ -23,6 +23,7 @@ func makeServer(listenAddr string, nodes ...string) *Server {
 		Transport:         tcpTransport,
 		BootstrapNodes:    nodes,
 		Enckey:            newEncryptionkey(),
+		ID:                generateID(),
 	}
 	s := NewServer(fileserveropts)
 
@@ -51,7 +52,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := s3.store.Delete(key); err != nil {
+		if err := s3.store.Delete(s3.ID, key); err != nil {
 			log.Fatal(err)
 		}
 

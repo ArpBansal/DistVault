@@ -11,6 +11,9 @@ import (
 	"strings"
 )
 
+/* TODO : sync whole folder to server
+when writing and reading specify the id*/
+
 const DefaultRootfolderName = "ggnetwork"
 
 func CASPathTransformFunc(key string) PathKey {
@@ -45,14 +48,12 @@ func (p PathKey) FirstPathName() string {
 	return paths[0]
 }
 func (p PathKey) FullPath() string {
-	return fmt.Sprintf("%s%s", p.PathName, p.Filename)
+	return fmt.Sprintf("%s/%s", p.PathName, p.Filename)
 }
 
 type StoreOpts struct {
 	// Root is folder name of root containg all of the folder/files of your system
-	Root string
-
-	ID                string
+	Root              string
 	PathTransformFunc PathTransformFunc
 }
 
@@ -74,60 +75,49 @@ func NewStore(opts StoreOpts) *Store {
 	if len(opts.Root) == 0 {
 		opts.Root = DefaultRootfolderName
 	}
-	if len(opts.ID) == 0 {
-		opts.ID = generateID()
-	}
+
 	return &Store{
 		StoreOpts: opts,
 	}
 
 }
 
-func (s *Store) Has(key string) bool {
+func (s *Store) Has(id string, key string) bool {
 	pathkey := s.PathTransformFunc(key)
-	_, err := os.Stat(s.Root + "/" + s.ID + "/" + pathkey.FullPath())
-	return !errors.Is(err, os.ErrNotExist) // self-changes
+	_, err := os.Stat(s.Root + "/" + id + "/" + pathkey.FullPath())
+	return !errors.Is(err, os.ErrNotExist)
 }
 
 func (s *Store) Clear() error {
 	return os.RemoveAll(s.Root)
 }
 
-func (s *Store) Delete(key string) error {
+func (s *Store) Delete(id string, key string) error {
 	pathkey := s.PathTransformFunc(key)
 	defer func() {
 		log.Printf("deleted [%s] from disk", pathkey.Filename)
 	}()
-	return os.RemoveAll(s.Root + "/" + s.ID + "/" + pathkey.FirstPathName())
+	return os.RemoveAll(s.Root + "/" + id + "/" + pathkey.FirstPathName())
 
 }
 
-func (s *Store) Write(key string, r io.Reader) (int64, error) {
-	return s.writeStream(key, r)
+func (s *Store) Write(id string, key string, r io.Reader) (int64, error) {
+	return s.writeStream(id, key, r)
 }
 
 // why used two funcs Read() and readStream ??
 // FixMe: should I rather than copy directly to reader, first copy into a buffer-
 // -Maybe just return file from readstream
 
-func (s *Store) Read(key string) (int64, io.Reader, error) {
-	return s.readStream(key)
+func (s *Store) Read(id string, key string) (int64, io.Reader, error) {
+	return s.readStream(id, key)
 
 	// TODO: maybe implement cache
-
-	// fsize, f, err := s.readStream(key)
-	// if err != nil {
-	// 	return fsize, nil, err
-	// }
-	// defer f.Close()
-	// buf := new(bytes.Buffer)
-	// _, err = io.Copy(buf, f)
-	// return fsize, buf, err
 }
 
-func (s *Store) readStream(key string) (int64, io.ReadCloser, error) {
+func (s *Store) readStream(id string, key string) (int64, io.ReadCloser, error) {
 	pathKey := s.PathTransformFunc(key)
-	fullPathwithroot := s.Root + "/" + s.ID + "/" + pathKey.FullPath()
+	fullPathwithroot := s.Root + "/" + id + "/" + pathKey.FullPath()
 	file, err := os.Open(fullPathwithroot)
 	if err != nil {
 		return 0, nil, err
@@ -140,8 +130,8 @@ func (s *Store) readStream(key string) (int64, io.ReadCloser, error) {
 
 }
 
-func (s *Store) WriteDecrypt(encKey []byte, key string, r io.Reader) (int64, error) {
-	f, err := s.openfileforwriting(key)
+func (s *Store) WriteDecrypt(encKey []byte, id string, key string, r io.Reader) (int64, error) {
+	f, err := s.openfileforwriting(id, key)
 	if err != nil {
 		return 0, err
 	}
@@ -151,19 +141,20 @@ func (s *Store) WriteDecrypt(encKey []byte, key string, r io.Reader) (int64, err
 	return int64(n), err
 }
 
-func (s *Store) openfileforwriting(key string) (*os.File, error) {
+func (s *Store) openfileforwriting(id string, key string) (*os.File, error) {
 	PathKey := s.PathTransformFunc(key)
-	if err := os.MkdirAll(s.Root+"/"+s.ID+"/"+PathKey.PathName, os.ModePerm); err != nil {
+	var filePathWithRoot string = s.Root + "/" + id + "/" + PathKey.PathName
+	if err := os.MkdirAll(filePathWithRoot, os.ModePerm); err != nil {
 		return nil, err
 	}
 
 	filePath := PathKey.FullPath()
-	filePathWithRoot := s.Root + "/" + s.ID + "/" + filePath
-	return os.Create(filePathWithRoot)
+	fullPathWithRoot := s.Root + "/" + id + "/" + filePath
+	return os.Create(fullPathWithRoot)
 
 }
-func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
-	f, err := s.openfileforwriting(key)
+func (s *Store) writeStream(id string, key string, r io.Reader) (int64, error) {
+	f, err := s.openfileforwriting(id, key)
 	if err != nil {
 		return 0, err
 	}

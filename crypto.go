@@ -10,6 +10,8 @@ import (
 	"io"
 )
 
+// TODO/To ponder over: original storage that is saving file at first storing them as it is without any cryptography
+
 func generateID() string {
 	buf := make([]byte, 32)
 	io.ReadFull(rand.Reader, buf)
