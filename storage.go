@@ -141,6 +141,31 @@ func (s *Store) WriteDecrypt(encKey []byte, id string, key string, r io.Reader) 
 	return int64(n), err
 }
 
+func (s *Store) WriteEncrypt(encKey []byte, id string, key string, r io.Reader) (int64, error) {
+	f, err := s.openfileforwriting(id, key)
+	if err != nil {
+		return 0, err
+	}
+
+	n, err := EncryptCopy(encKey, r, f)
+
+	return int64(n), err
+}
+
+// changes-1.01
+func (s *Store) ReadEncrypt(encKey []byte, id string, key string) (int64, io.WriteCloser, error) {
+	f, err := s.openfileforwriting(id, key)
+	if err != nil {
+		return 0, nil, err
+	}
+	var r io.WriteCloser
+	n, err := decryptCopy(encKey, f, r)
+	if err != nil {
+		return 0, nil, err
+	}
+	return int64(n), r, nil
+}
+
 func (s *Store) openfileforwriting(id string, key string) (*os.File, error) {
 	PathKey := s.PathTransformFunc(key)
 	var filePathWithRoot string = s.Root + "/" + id + "/" + PathKey.PathName
@@ -153,6 +178,7 @@ func (s *Store) openfileforwriting(id string, key string) (*os.File, error) {
 	return os.Create(fullPathWithRoot)
 
 }
+
 func (s *Store) writeStream(id string, key string, r io.Reader) (int64, error) {
 	f, err := s.openfileforwriting(id, key)
 	if err != nil {

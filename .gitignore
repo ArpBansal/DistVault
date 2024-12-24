@@ -1,3 +1,5 @@
 /myspecialPicture
 .vscode
 test.go
+/cache
+/internals

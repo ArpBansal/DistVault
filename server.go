@@ -71,7 +71,8 @@ func (s *Server) Get(key string) (io.Reader, error) {
 	if s.store.Has(s.ID, key) {
 		log.Printf("[%s] serving file (%s) from local disk\n", s.Transport.Addr(), key)
 		_, r, err := s.store.Read(s.ID, key)
-
+		// changes-1.01
+		// n, err = decryptCopy(s.Enckey, s.ID, key)
 		return r, err
 	}
 
@@ -110,7 +111,14 @@ func (s *Server) StoreData(key string, r io.Reader) error {
 	fileBuffer := new(bytes.Buffer)
 	tee := io.TeeReader(r, fileBuffer)
 
-	size, err := s.store.Write(s.ID, key, tee)
+	// changes-1.01
+	// Encrypt and write to disk
+	// encryptedBuffer := new(bytes.Buffer)
+	// if _, err := EncryptCopy(s.Enckey, tee, encryptedBuffer); err != nil {
+	// 	return err
+	// }
+
+	size, err := s.store.Write(s.ID, key, tee) // replace tee
 	if err != nil {
 		return err
 	}
@@ -119,7 +127,7 @@ func (s *Server) StoreData(key string, r io.Reader) error {
 		Payload: MessageStoreFile{
 			ID:   s.ID,
 			Key:  hashKeymd5(key),
-			Size: size + 16, // 16 bytes due to encryption
+			Size: size + 16, // Add 16 bytes due to encryption
 		},
 	}
 

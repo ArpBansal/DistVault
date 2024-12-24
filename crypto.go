@@ -59,6 +59,7 @@ func copyStream(stream cipher.Stream, blockSize int, src io.Reader, dst io.Write
 	}
 	return nw, nil
 }
+
 func EncryptCopy(key []byte, src io.Reader, dst io.Writer) (int, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {

@@ -2,7 +2,7 @@ module github.com/arpbansal/distributed_storage_system
 
 go 1.23.0
 
-replace github.com/arpbansal/distributed_storage_system v0.1.0 => ./peer2peer
+// replace github.com/arpbansal/distributed_storage_system v0.1.0 => ./peer2peer
 
 require github.com/stretchr/testify v1.9.0
 
