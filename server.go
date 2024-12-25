@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"sync"
 	"time"
 
@@ -310,6 +311,27 @@ func (s *Server) Start() error {
 	return nil
 }
 
+func (s *Server) ServerlAlive() {
+	for {
+		addr := s.Transport.Addr()
+		if addr == "" {
+			log.Printf("Server Addr not available")
+			return
+		}
+		conn, err := net.Dial("tcp", addr)
+		if err != nil {
+			if opError, ok := err.(*net.OpError); ok && opError.Op == "dial" && opError.Err.Error() == "connect: connection refused" {
+				log.Printf("\nServer is not alive at %s", addr)
+			} else {
+				log.Printf("\nError connecting: %v", err)
+			}
+		} else {
+			log.Printf("Server is alive at %s", addr)
+			conn.Close()
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
 func (s *Server) Store(key string, r io.Reader) (int64, error) {
 	return s.store.Write(s.ID, key, r)
 }
