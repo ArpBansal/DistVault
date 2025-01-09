@@ -11,5 +11,9 @@ This system is designed to distribute data across multiple nodes, ensuring high 
 - Efficient data retrieval
 - Scalable architecture
 
+## Requirement
+- GO 
+- OS : Ubuntu 22.04
+
 ## Project Status
 **Phase**: Still in development
