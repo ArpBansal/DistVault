@@ -3,3 +3,5 @@
 test.go
 /cache
 /internals
+*.crt
+*.key
