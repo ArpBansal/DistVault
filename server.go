@@ -12,15 +12,21 @@ import (
 	"time"
 
 	"github.com/arpbansal/distributed_storage_system/peer2peer"
+	"github.com/hashicorp/raft"
+	// certificatemanager "cloud.google.com/go/certificatemanager/apiv1" // May use this
+	// "google.golang.org/grpc/credentials/tls/certprovider" // May not use
 )
 
 type ServerOpts struct {
-	ID                string
+	keyPath           string
+	crtPath           string
+	ID                string // For server identification not Certificate number
 	StorageRoot       string
 	PathTransformFunc PathTransformFunc
 	Transport         peer2peer.Transport
 	BootstrapNodes    []string
 	Enckey            []byte
+	raft              *raft.Raft
 }
 
 type Server struct {

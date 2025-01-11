@@ -17,6 +17,15 @@ script provided to create required files*/
 func TestCreateCertPool(t *testing.T) {
 	// Replace with a valid path or mock
 	certPool := create_certPool("ca.crt", nil)
+	// certData, err := os.ReadFile("ca.crt")
+	// if err != nil {
+	// 	t.Fatalf("Failed to read CA certificate: %v", err)
+	// }
+	// cert, err := x509.ParseCertificate(certData)
+	// if err != nil {
+	// 	t.Fatalf("Failed to parse CA certificate: %v", err)
+	// }
+	// log.Printf("CA Certificate Subject: %v", cert.Subject)
 	if certPool == nil {
 		t.Error("Expected certPool to be non-nil")
 	}
@@ -37,7 +46,7 @@ func TestVerifyServerCert(t *testing.T) {
 	}
 }
 
-func TestCreatePeerCert(t *testing.T) {
+func TestCreateServerCert(t *testing.T) {
 	caKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	caTemplate := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -52,14 +61,39 @@ func TestCreatePeerCert(t *testing.T) {
 	}
 	caDER, _ := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
 	caCert, _ := x509.ParseCertificate(caDER)
-
-	_, _ = CreatePeerCert(caKey, caCert, pkix.Name{CommonName: "Peer"}, "peerCertTest")
+	s := Server{
+		ServerOpts: ServerOpts{},
+	}
+	_, _ = s.CreateServerCert(caKey, caCert, pkix.Name{CommonName: "Peer"})
 
 	// Verify files created
-	if _, err := os.Stat("peerCertTest.crt"); err != nil {
+	if _, err := os.Stat(s.crtPath); err != nil {
 		t.Error("Certificate file not created")
 	}
-	if _, err := os.Stat("peerCertTest.key"); err != nil {
+	if _, err := os.Stat(s.keyPath); err != nil {
 		t.Error("Key file not created")
 	}
+	os.Remove(s.crtPath)
+	os.Remove(s.keyPath)
+}
+
+func TestCreateCACert(t *testing.T) {
+	caKeyPath := "testca.key"
+	caCertPath := "testca.crt"
+	detail := pkix.Name{
+		Country:      []string{"US"},
+		Province:     []string{"California"},
+		Locality:     []string{"TestingLocation"},
+		Organization: []string{"TestOrg"},
+		CommonName:   "TestCA",
+	}
+	createCACert(caKeyPath, caCertPath, detail)
+	if _, err := os.Stat(caKeyPath); err != nil {
+		t.Errorf("Expected CA key file to exist, got error: %v", err)
+	}
+	if _, err := os.Stat(caCertPath); err != nil {
+		t.Errorf("Expected CA cert file to exist, got error: %v", err)
+	}
+	os.Remove(caKeyPath)
+	os.Remove(caCertPath)
 }
