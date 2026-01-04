@@ -26,6 +26,10 @@ go mod tidy
 wget https://releases.hashicorp.com/consul/1.20.1/consul_1.20.1_linux_amd64.zip && unzip -o consul_1.20.1_linux_amd64.zip && sudo mv consul /usr/local/bin/ && consul version
 ```
 
+```sh
+nohup consul agent -dev -ui > consul.log 2>&1 &
+```
+
 Run:
 ```sh
 make run
