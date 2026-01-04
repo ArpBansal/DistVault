@@ -183,11 +183,8 @@ func isBackendAlive(u *url.URL) bool {
 func (lb *LoadBalancer) StartHealthCheck() {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
-		for {
-			select {
-			case <-ticker.C:
-				lb.HealthCheck()
-			}
+		for range ticker.C {
+			lb.HealthCheck()
 		}
 	}()
 }
