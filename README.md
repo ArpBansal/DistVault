@@ -16,10 +16,14 @@ git clone https://github.com/ArpBansal/DistVault.git
 cd DistVault
 ```
 
-Install Dependencies If any
+Install Dependencies
 
 ```sh
 go mod tidy
+```
+
+```sh
+wget https://releases.hashicorp.com/consul/1.20.1/consul_1.20.1_linux_amd64.zip && unzip -o consul_1.20.1_linux_amd64.zip && sudo mv consul /usr/local/bin/ && consul version
 ```
 
 Run:
@@ -34,8 +38,8 @@ make run
 - Efficient data retrieval
 - Scalable architecture
 
-## Requirement
-- GO 1.23(used to develop this), should work with 1.16+
+## System
+- GO 1.23(used to develop this), should work with 1.18+ (updated to 1.25 gp-version)
 - OS : Ubuntu 22.04
 
 ## Project Status
